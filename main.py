@@ -3,7 +3,7 @@ import uvicorn
 from fastapi.routing import APIRouter
 from sqlalchemy import Column, Boolean, String
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
-from sqlalchemy.orm import sessionmarker, declarative_base
+from sqlalchemy.orm import sessionmaker, declarative_base
 import settings
 from sqlalchemy.dialects.postgresql import UUID
 import uuid
@@ -21,7 +21,7 @@ engine = create_async_engine(settings.REAL_DATABASE_URL, future=True, echo=True)
 
 
 #create session for the interaction with database
-async_session = sessionmarker(engine, expire_on_comit=False, class_=AsyncSession)
+async_session = sessionmaker(engine, expire_on_commit=False, class_=AsyncSession)
 
 """block with database models"""
 
@@ -33,7 +33,7 @@ class User(Base):
 
     user_id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     first_name = Column(String, nullable=False)
-    first_name = Column(String, nullable=False)
+    last_name = Column(String, nullable=False)
     email = Column(String, nullable=False, unique=True)
     is_active = Column(Boolean(), default=True)
 
@@ -59,7 +59,7 @@ class UserDAL:
         return new_user
 
 
-LETTER_MATCH_PATTERN = re.compile(r"^[а-яА-Яа-zA-Z\-]+$")
+LETTER_MATCH_PATTERN = re.compile(r"^[a-zA-Z]+$")
 
 """block with api models"""
 
@@ -69,12 +69,14 @@ class TunedModel(BaseModel):
         # Tells pydantic to convert even non dict obj to json
         orm_mode = True
 
+
 class ShowUser(TunedModel):
     user_id: uuid.UUID
     first_name: str
-    first_name: str
+    last_name: str
     email: EmailStr
     is_active: bool
+
 
 class UserCreate(BaseModel):
     first_name: str
@@ -103,7 +105,7 @@ class UserCreate(BaseModel):
 # create instance of the app
 app = FastAPI(title="education-platform")
 
-user_router = APIRouter
+user_router = APIRouter()
 
 
 async def _create_new_user(body: UserCreate) -> ShowUser:
@@ -127,4 +129,16 @@ async def _create_new_user(body: UserCreate) -> ShowUser:
 @user_router.post("/", response_model=ShowUser)
 async def create_user(body: UserCreate) -> ShowUser:
     return await _create_new_user(body)
+
+# create the instance for the routes
+main_api_router = APIRouter()
+
+# set routes to the app instance
+main_api_router.include_router(user_router, prefix="/user", tags=["user"])
+app.include_router(main_api_router)
+
+if __name__ == "__main__":
+    # run app on the host amd port
+    uvicorn.run(app, host="0.0.0.0", port=8001)
+
 
